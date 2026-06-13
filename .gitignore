@@ -1,0 +1,11 @@
+﻿.env
+keyfile.json
+terraform/terraform.tfvars
+localstack_data/
+__pycache__/
+*.pyc
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+.env.zip

@@ -1,0 +1,19 @@
+# ============================================================
+# terraform.tfvars.example
+# Copy to terraform.tfvars and fill in your values.
+# Add terraform.tfvars to .gitignore — never commit secrets.
+# ============================================================
+
+gcp_project_id   = "your-gcp-project-id"
+gcp_region       = "us-central1"
+gcp_keyfile_path = "../keyfile.json"
+
+cloud_sql_user     = "pipeline_user"
+cloud_sql_password = "your-secure-password-here"
+
+localstack_dynamodb_endpoint = "http://localhost:4566"
+
+aws_region          = "us-east-1"
+s3_bucket_name      = "hybrid-cloud-bucket"
+sqs_queue_name      = "data-processing-queue"
+dynamodb_table_name = "processed-records"
