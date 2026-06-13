@@ -1,10 +1,3 @@
-# ============================================================
-# Terraform Variables
-# ============================================================
-
-# ----------------------------
-# GCP Variables
-# ----------------------------
 
 variable "gcp_project_id" {
   description = "The Google Cloud project ID"
@@ -41,9 +34,6 @@ variable "localstack_dynamodb_endpoint" {
   default     = "http://localhost:4566"
 }
 
-# ----------------------------
-# AWS / LocalStack Variables
-# ----------------------------
 
 variable "aws_region" {
   description = "AWS region (simulated by LocalStack)"

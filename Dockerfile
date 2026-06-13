@@ -1,9 +1,3 @@
-# ============================================================
-# Root Dockerfile — Bridge Application
-# (docker-compose references ./src/bridge_app/Dockerfile,
-#  this file satisfies the submission checklist requirement
-#  for a top-level Dockerfile)
-# ============================================================
 FROM python:3.11-slim
 
 RUN groupadd --gid 1001 bridge && \

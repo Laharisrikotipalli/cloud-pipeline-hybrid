@@ -1,10 +1,4 @@
-# ============================================================
-# GCP Resources
-# ============================================================
 
-# ----------------------------
-# Enable Required APIs
-# ----------------------------
 
 resource "google_project_service" "pubsub_api" {
   service            = "pubsub.googleapis.com"
@@ -36,9 +30,6 @@ resource "google_project_service" "secretmanager_api" {
   disable_on_destroy = false
 }
 
-# ----------------------------
-# Pub/Sub Topic
-# ----------------------------
 
 resource "google_pubsub_topic" "localstack_events" {
   name    = "localstack-events"
@@ -79,10 +70,6 @@ resource "google_pubsub_subscription" "localstack_events_sub" {
     maximum_backoff = "600s"
   }
 }
-
-# ----------------------------
-# Cloud SQL — PostgreSQL
-# ----------------------------
 
 resource "google_sql_database_instance" "pipeline_instance" {
   name             = "pipeline-sql-instance"
@@ -134,9 +121,6 @@ resource "google_sql_user" "pipeline_user" {
   project  = var.gcp_project_id
 }
 
-# ----------------------------
-# Cloud Storage Bucket for Function source
-# ----------------------------
 
 resource "google_storage_bucket" "function_source_bucket" {
   name                        = "${var.gcp_project_id}-function-source"
@@ -160,10 +144,6 @@ resource "google_storage_bucket_object" "processor_function_source" {
   source = data.archive_file.processor_function_zip.output_path
 }
 
-# ----------------------------
-# IAM — GCF build SA needs Storage access
-# FIX: was missing, caused "Access to bucket gcf-sources denied" error
-# ----------------------------
 
 data "google_project" "project" {
   project_id = var.gcp_project_id
@@ -175,9 +155,6 @@ resource "google_project_iam_member" "gcf_build_sa_storage" {
   member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }
 
-# ----------------------------
-# Cloud Function
-# ----------------------------
 
 resource "google_cloudfunctions_function" "processor_function" {
   name        = "process-localstack-event"
@@ -228,10 +205,6 @@ resource "google_cloudfunctions_function" "processor_function" {
   ]
 }
 
-# ----------------------------
-# Secret Manager
-# ----------------------------
-
 resource "google_secret_manager_secret" "sql_password" {
   secret_id = "pipeline-sql-password"
   project   = var.gcp_project_id
@@ -249,17 +222,11 @@ resource "google_secret_manager_secret_version" "sql_password_version" {
   secret_data = var.cloud_sql_password
 }
 
-# FIX: was using App Engine SA ({project_id}@appspot.gserviceaccount.com)
-# Gen1 Cloud Functions run as the compute default SA, not App Engine SA
 resource "google_secret_manager_secret_iam_member" "function_secret_access" {
   secret_id = google_secret_manager_secret.sql_password.id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }
-
-# ----------------------------
-# IAM — allow Pub/Sub to invoke Cloud Function
-# ----------------------------
 
 resource "google_cloudfunctions_function_iam_member" "pubsub_invoker" {
   project        = var.gcp_project_id

@@ -1,10 +1,3 @@
-# ============================================================
-# LocalStack AWS Resources
-# ============================================================
-
-# ----------------------------
-# S3 Bucket
-# ----------------------------
 
 resource "aws_s3_bucket" "hybrid_bucket" {
   bucket        = var.s3_bucket_name
@@ -38,10 +31,6 @@ resource "aws_s3_bucket_notification" "bucket_notification" {
   depends_on = [aws_sqs_queue_policy.allow_s3_notifications]
 }
 
-# ----------------------------
-# SQS — Dead-Letter Queue
-# ----------------------------
-
 resource "aws_sqs_queue" "data_processing_dlq" {
   name                       = "${var.sqs_queue_name}-dlq"
   message_retention_seconds  = 1209600
@@ -54,9 +43,6 @@ resource "aws_sqs_queue" "data_processing_dlq" {
   }
 }
 
-# ----------------------------
-# SQS — Main Processing Queue
-# ----------------------------
 
 resource "aws_sqs_queue" "data_processing_queue" {
   name                       = var.sqs_queue_name
@@ -98,10 +84,6 @@ resource "aws_sqs_queue_policy" "allow_s3_notifications" {
   })
 }
 
-# ----------------------------
-# DynamoDB Table
-# ----------------------------
-
 resource "aws_dynamodb_table" "processed_records" {
   name         = var.dynamodb_table_name
   billing_mode = "PAY_PER_REQUEST"
@@ -133,10 +115,6 @@ resource "aws_dynamodb_table" "processed_records" {
     Project     = "hybrid-cloud-pipeline"
   }
 }
-
-# ----------------------------
-# IAM Role for the bridge app
-# ----------------------------
 
 resource "aws_iam_role" "bridge_role" {
   name = "bridge-app-role"

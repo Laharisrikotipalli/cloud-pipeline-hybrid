@@ -1,15 +1,3 @@
-"""
-GCP Cloud Function — process_event
-====================================
-Triggered by Pub/Sub messages on the `localstack-events` topic.
-
-Pipeline:
-  1. Decode & parse the Pub/Sub message (original S3 JSON file content).
-  2. Validate required fields (recordId, userEmail, value).
-  3. Write the record to Cloud SQL (PostgreSQL) — idempotent via ON CONFLICT.
-  4. Write the record to LocalStack DynamoDB — idempotent via PUT with same PK.
-"""
-
 import os
 import json
 import base64
@@ -20,20 +8,18 @@ import boto3
 from botocore.exceptions import ClientError
 import pg8000.native
 
-# ── Logging ───────────────────────────────────────────────────────────────────
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s")
 logger = logging.getLogger("processor_function")
 
-# ── Environment ───────────────────────────────────────────────────────────────
 
 GCP_PROJECT_ID            = os.environ.get("GCP_PROJECT_ID", "")
 CLOUD_SQL_CONNECTION_NAME = os.environ.get("CLOUD_SQL_CONNECTION_NAME", "")
 CLOUD_SQL_DB_NAME         = os.environ.get("CLOUD_SQL_DB_NAME", "pipelinedb")
 CLOUD_SQL_USER            = os.environ.get("CLOUD_SQL_USER", "pipeline_user")
 CLOUD_SQL_PASSWORD        = os.environ.get("CLOUD_SQL_PASSWORD", "")
-CLOUD_SQL_HOST            = os.environ.get("CLOUD_SQL_HOST", "")  # direct IP fallback
+CLOUD_SQL_HOST            = os.environ.get("CLOUD_SQL_HOST", "")  
 
 DYNAMODB_ENDPOINT_URL     = os.environ.get("DYNAMODB_ENDPOINT_URL", "http://localhost:4566")
 DYNAMODB_TABLE_NAME       = os.environ.get("DYNAMODB_TABLE_NAME", "processed-records")
@@ -41,7 +27,6 @@ AWS_REGION                = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 AWS_ACCESS_KEY_ID         = os.environ.get("AWS_ACCESS_KEY_ID", "test")
 AWS_SECRET_ACCESS_KEY     = os.environ.get("AWS_SECRET_ACCESS_KEY", "test")
 
-# ── Cloud SQL helper ──────────────────────────────────────────────────────────
 
 def _get_sql_connection():
     """
@@ -116,8 +101,6 @@ def write_to_cloud_sql(record_id: str, user_email: str, value: int,
             conn.close()
 
 
-# ── DynamoDB helper ───────────────────────────────────────────────────────────
-
 def _get_dynamodb_client():
     return boto3.client(
         "dynamodb",
@@ -150,7 +133,6 @@ def write_to_dynamodb(record_id: str, user_email: str, value: int,
         raise
 
 
-# ── Entry Point ───────────────────────────────────────────────────────────────
 
 def process_event(event: dict, context):
     """
@@ -160,7 +142,7 @@ def process_event(event: dict, context):
         event:   Pub/Sub event dict with a base64-encoded `data` field.
         context: Cloud Function context object (unused).
     """
-    # 1 — Decode Pub/Sub message
+
     pubsub_data = event.get("data", "")
     if not pubsub_data:
         logger.error("Empty Pub/Sub message — skipping")
@@ -174,7 +156,6 @@ def process_event(event: dict, context):
         logger.error("Failed to decode/parse Pub/Sub payload: %s", exc)
         return "ERROR: invalid payload", 400
 
-    # 2 — Validate required fields
     record_id  = data.get("recordId")
     user_email = data.get("userEmail")
     value      = data.get("value")
@@ -192,30 +173,27 @@ def process_event(event: dict, context):
         logger.error("'value' must be an integer, got %r: %s", value, exc)
         return "ERROR: value must be integer", 400
 
-    # 3 — Add processing timestamp
     processed_at = datetime.now(tz=timezone.utc)
 
     logger.info("Processing record: id=%s email=%s value=%d ts=%s",
                 record_id, user_email, value, processed_at.isoformat())
 
-    # 4 — Write to Cloud SQL
     sql_ok = False
     try:
         write_to_cloud_sql(record_id, user_email, value, processed_at)
         sql_ok = True
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc: 
         logger.error("Cloud SQL write failed: %s", exc)
 
-    # 5 — Write to DynamoDB
     dynamo_ok = False
     try:
         write_to_dynamodb(record_id, user_email, value, processed_at)
         dynamo_ok = True
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc: 
         logger.error("DynamoDB write failed: %s", exc)
 
     if not sql_ok or not dynamo_ok:
-        # Return non-200 so Pub/Sub retries delivery
+       
         return "PARTIAL_FAILURE", 500
 
     logger.info("Record %s processed successfully (sql=%s dynamo=%s)",

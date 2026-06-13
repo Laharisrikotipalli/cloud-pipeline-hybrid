@@ -13,18 +13,12 @@ terraform {
   }
 }
 
-# -----------------------------------------------
-# GCP Provider
-# -----------------------------------------------
 provider "google" {
   project     = var.gcp_project_id
   region      = var.gcp_region
   credentials = file(var.gcp_keyfile_path)
 }
 
-# -----------------------------------------------
-# AWS Provider — points to LocalStack
-# -----------------------------------------------
 provider "aws" {
   region                      = "us-east-1"
   access_key                  = "test"

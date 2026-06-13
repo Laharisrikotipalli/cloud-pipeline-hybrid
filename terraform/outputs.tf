@@ -1,11 +1,3 @@
-# ============================================================
-# Terraform Outputs
-# ============================================================
-
-# ----------------------------
-# LocalStack Outputs
-# ----------------------------
-
 output "s3_bucket_name" {
   description = "Name of the S3 bucket in LocalStack"
   value       = aws_s3_bucket.hybrid_bucket.bucket
@@ -25,10 +17,6 @@ output "dynamodb_table_name" {
   description = "Name of the DynamoDB table in LocalStack"
   value       = aws_dynamodb_table.processed_records.name
 }
-
-# ----------------------------
-# GCP Outputs
-# ----------------------------
 
 output "pubsub_topic_id" {
   description = "ID of the GCP Pub/Sub topic"
