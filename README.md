@@ -304,9 +304,3 @@ docker-compose logs bridge
 gcloud functions logs read process-localstack-event --limit=50
 # Ensure DYNAMODB_ENDPOINT_URL is reachable from GCP (requires tunnel/VPN in production)
 ```
-
----
-
-## License
-
-MIT — see `LICENSE` for details.
