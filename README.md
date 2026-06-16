@@ -85,6 +85,12 @@ cp .env.example .env
 gcloud auth login
 gcloud config set project YOUR_PROJECT_ID
 
+# Enable required APIs
+gcloud services enable pubsub.googleapis.com sqladmin.googleapis.com \
+  cloudfunctions.googleapis.com cloudbuild.googleapis.com \
+  storage.googleapis.com secretmanager.googleapis.com \
+  cloudresourcemanager.googleapis.com
+
 # Create a service account
 gcloud iam service-accounts create pipeline-sa \
   --display-name "Hybrid Pipeline Service Account"
@@ -106,11 +112,12 @@ gcloud iam service-accounts keys create keyfile.json \
 ### 3. Start LocalStack
 
 ```bash
-docker-compose up localstack -d
+docker-compose up -d
 
 # Wait for healthy status (~30s)
 docker-compose ps
 # localstack_main   running (healthy)
+# bridge_app        running
 ```
 
 ### 4. Apply Terraform
@@ -127,18 +134,15 @@ terraform apply
 cd ..
 ```
 
-### 5. Start the Bridge App
+### 5. Verify the Full Pipeline
 
 ```bash
-docker-compose up bridge -d
-docker-compose logs -f bridge
-```
-
-### 6. Verify the Full Pipeline
-
-```bash
-# Upload the test event
+# Upload the test event (using awslocal)
 awslocal s3 cp test-event.json s3://hybrid-cloud-bucket/
+
+# OR using standard AWS CLI pointed at LocalStack
+aws --endpoint-url=http://localhost:4566 --region us-east-1 \
+  s3 cp test-event.json s3://hybrid-cloud-bucket/test-event.json
 
 # Check SQS received the message
 awslocal sqs receive-message \
@@ -155,6 +159,11 @@ gcloud pubsub subscriptions pull test-sub --auto-ack --limit=5
 # Check DynamoDB
 awslocal dynamodb get-item \
   --table-name processed-records \
+  --key '{"recordId":{"S":"xyz-789"}}'
+
+# OR using standard AWS CLI
+aws --endpoint-url=http://localhost:4566 --region us-east-1 \
+  dynamodb get-item --table-name processed-records \
   --key '{"recordId":{"S":"xyz-789"}}'
 
 # Verify Cloud SQL (replace with your instance IP)
@@ -174,6 +183,11 @@ hybrid-cloud-pipeline/
 ├── .gitignore
 ├── submission.json               # Automated evaluation config
 ├── test-event.json               # Test payload for pipeline verification
+├── s3-notification.json          # S3 bucket notification config
+│
+├── localstack_init/
+│   └── ready.d/
+│       └── 01_init.sh            # Auto-creates LocalStack resources on start
 │
 ├── terraform/
 │   ├── providers.tf              # AWS (LocalStack) + GCP providers
@@ -205,7 +219,7 @@ hybrid-cloud-pipeline/
 | `AWS_ACCESS_KEY_ID` | LocalStack dummy credential | `test` |
 | `AWS_SECRET_ACCESS_KEY` | LocalStack dummy credential | `test` |
 | `AWS_DEFAULT_REGION` | AWS region for LocalStack | `us-east-1` |
-| `SQS_QUEUE_URL` | Full SQS queue URL | `http://localhost:4566/000000000000/data-processing-queue` |
+| `SQS_QUEUE_URL` | Full SQS queue URL | `http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/data-processing-queue` |
 | `CLOUD_SQL_PASSWORD` | PostgreSQL user password | `your-secure-password` |
 
 ---
@@ -276,6 +290,9 @@ The Bridge App and Cloud Function implement exponential backoff (2ˢ seconds) fo
 - `terraform.tfvars` and `keyfile.json` are in `.gitignore`.
 - LocalStack IAM role follows least-privilege principle.
 
+### LocalStack Persistence
+LocalStack is configured with `PERSISTENCE=1` and `DATA_DIR=/tmp/localstack/data`. The named Docker volume `localstack_data` is mounted at `/var/lib/localstack` for compatibility with LocalStack 3.8.1 community edition. The `localstack_init/ready.d/01_init.sh` script automatically recreates AWS resources (S3 bucket, SQS queue, DynamoDB table) on each startup.
+
 ---
 
 ## Troubleshooting
@@ -293,6 +310,12 @@ docker-compose ps
 awslocal s3 ls  # should return empty list, not error
 ```
 
+**Terraform `apply` fails with GCP authentication error**
+```bash
+# Ensure keyfile.json exists and PATH_TO_GCP_KEYFILE is set in .env
+gcloud auth application-default login
+```
+
 **Bridge app not forwarding messages**
 ```bash
 docker-compose logs bridge
@@ -302,5 +325,22 @@ docker-compose logs bridge
 **Cloud Function not writing to DynamoDB**
 ```bash
 gcloud functions logs read process-localstack-event --limit=50
-# Ensure DYNAMODB_ENDPOINT_URL is reachable from GCP (requires tunnel/VPN in production)
+# The GCP Cloud Function writes to DynamoDB via DYNAMODB_ENDPOINT_URL env var.
+# In production, ensure network connectivity via VPN or Cloud NAT tunnel.
+# The bridge app also writes to DynamoDB directly as a fallback.
 ```
+
+**SQS queue not receiving S3 notifications**
+```bash
+# Reapply the S3 bucket notification after LocalStack restart
+aws --endpoint-url=http://localhost:4566 --region us-east-1 \
+  s3api put-bucket-notification-configuration \
+  --bucket hybrid-cloud-bucket \
+  --notification-configuration file://s3-notification.json
+```
+
+---
+
+## License
+
+MIT
